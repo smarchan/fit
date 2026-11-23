@@ -12,7 +12,8 @@ let cached: Promise<Db> | null = null;
 export function getDb(): Promise<Db> {
   if (cached) return cached;
   cached = (async () => {
-    const db = process.env.DATABASE_URL ? neonDb(process.env.DATABASE_URL) : await devDb();
+    const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    const db = url ? neonDb(url) : await devDb();
     for (const stmt of SCHEMA) await db.query(stmt);
     return db;
   })().catch((e) => {
