@@ -41,7 +41,7 @@ export default function Today({ profile, day, isToday, actions }: { profile: Pro
         </div>
         <div className="grid-2">
           <button className="card act" onClick={actions.editSteps}>
-            <span className="act-ico" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+            <span className="act-ico" style={{ background: "var(--steps-soft)", color: "var(--steps)" }}>
               <IFoot size={18} />
             </span>
             <span className="act-big num">{fmt(day.steps?.steps ?? 0)}</span>
@@ -49,10 +49,10 @@ export default function Today({ profile, day, isToday, actions }: { profile: Pro
             <span className="mini-bar">
               <span style={{ width: `${Math.min(100, ((day.steps?.steps ?? 0) / 10000) * 100)}%` }} />
             </span>
-            {b.steps > 0 && <span className="act-plus">+{fmt(b.steps)} kcal</span>}
+            {b.steps > 0 && <span className="act-plus" style={{ color: "var(--steps)" }}>+{fmt(b.steps)} kcal</span>}
           </button>
           <button className="card act" onClick={actions.editWeight}>
-            <span className="act-ico" style={{ background: "var(--surface-3)", color: "var(--text)" }}>
+            <span className="act-ico" style={{ background: "rgba(124,58,237,.1)", color: "var(--protein)" }}>
               <IScale size={18} />
             </span>
             <span className="act-big num">
@@ -71,7 +71,7 @@ export default function Today({ profile, day, isToday, actions }: { profile: Pro
               </span>
             )}
             <span className="spacer" />
-            <button className="add-btn" style={{ background: "rgba(255,138,61,.13)", color: "var(--burn)" }} onClick={actions.addWorkout} aria-label="Añadir entreno">
+            <button className="add-btn" style={{ background: "var(--burn-soft)", color: "var(--burn)" }} onClick={actions.addWorkout} aria-label="Añadir entreno">
               <IPlus size={18} />
             </button>
           </div>
@@ -153,8 +153,8 @@ function Hero({ b, consumed }: { b: Budget; consumed: number }) {
       <div className="equation">
         <div className="eq-bar" aria-hidden="true">
           <span style={{ flexGrow: b.base, background: "var(--line-strong)" }} />
-          {b.goal > 0 && <span style={{ flexGrow: b.goal, background: "var(--protein)" }} />}
-          {b.steps > 0 && <span style={{ flexGrow: b.steps, background: "var(--accent)" }} />}
+          {b.goal > 0 && <span style={{ flexGrow: b.goal, background: "var(--accent)" }} />}
+          {b.steps > 0 && <span style={{ flexGrow: b.steps, background: "var(--steps)" }} />}
           {b.workoutsCounted > 0 && <span style={{ flexGrow: b.workoutsCounted, background: "var(--burn)" }} />}
           <span style={{ flexGrow: total * 0.0001 }} />
         </div>
@@ -165,12 +165,12 @@ function Hero({ b, consumed }: { b: Budget; consumed: number }) {
           </span>
           {b.goal !== 0 && (
             <span>
-              <i style={{ background: b.goal > 0 ? "var(--protein)" : "var(--over)" }} />
+              <i style={{ background: b.goal > 0 ? "var(--accent)" : "var(--over)" }} />
               {b.goal > 0 ? "Volumen" : "Déficit"} <b className="num">{b.goal > 0 ? "+" : "−"}{fmt(Math.abs(b.goal))}</b>
             </span>
           )}
           <span>
-            <i style={{ background: "var(--accent)" }} />
+            <i style={{ background: "var(--steps)" }} />
             Pasos <b className="num">+{fmt(b.steps)}</b>
           </span>
           <span>

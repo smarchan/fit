@@ -112,15 +112,15 @@ export default function Progress({ profile, streak, version }: { profile: Profil
             <div className="chart">
               <ResponsiveContainer>
                 <ComposedChart data={chartDays} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis dataKey="label" tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
-                  <YAxis tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => fmt(v)} />
-                  <Tooltip cursor={{ fill: "rgba(255,255,255,.04)" }} content={<KcalTip />} />
+                  <XAxis dataKey="label" tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => fmt(v)} />
+                  <Tooltip cursor={{ fill: "rgba(37,99,235,.06)" }} content={<KcalTip />} />
                   <Bar dataKey="consumed" radius={[6, 6, 2, 2]} maxBarSize={28}>
                     {chartDays.map((d) => (
-                      <Cell key={d.date} fill={!d.logged ? "#26262b" : d.consumed > d.target * 1.05 ? "var(--over)" : "var(--accent)"} />
+                      <Cell key={d.date} fill={!d.logged ? "#e8edf6" : d.consumed > d.target * 1.05 ? "var(--over)" : "var(--accent)"} />
                     ))}
                   </Bar>
-                  <Line dataKey="target" stroke="#f4f4f5" strokeWidth={2} dot={false} type="linear" strokeDasharray="4 4" />
+                  <Line dataKey="target" stroke="#0e1525" strokeWidth={2} dot={false} type="linear" strokeDasharray="4 4" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -136,11 +136,11 @@ export default function Progress({ profile, streak, version }: { profile: Profil
               <div className="chart sm">
                 <ResponsiveContainer>
                   <BarChart data={chartDays} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                    <XAxis dataKey="label" tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
-                    <YAxis tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
-                    <ReferenceLine y={10000} stroke="#34343c" strokeDasharray="3 3" />
-                    <Tooltip cursor={{ fill: "rgba(255,255,255,.04)" }} content={<SimpleTip unit="pasos" k="steps" />} />
-                    <Bar dataKey="steps" fill="#a3c92e" radius={[6, 6, 2, 2]} maxBarSize={28} />
+                    <XAxis dataKey="label" tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
+                    <YAxis tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
+                    <ReferenceLine y={10000} stroke="#c9d1e0" strokeDasharray="3 3" />
+                    <Tooltip cursor={{ fill: "rgba(16,185,129,.06)" }} content={<SimpleTip unit="pasos" k="steps" />} />
+                    <Bar dataKey="steps" fill="#10b981" radius={[6, 6, 2, 2]} maxBarSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -161,10 +161,10 @@ export default function Progress({ profile, streak, version }: { profile: Profil
                 <div className="chart sm">
                   <ResponsiveContainer>
                     <LineChart data={data.weights.map((w) => ({ ...w, label: shortDate(w.date) }))} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                      <XAxis dataKey="label" tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
-                      <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fill: "#5f5f69", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => fmt(v, 0)} />
+                      <XAxis dataKey="label" tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+                      <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fill: "#98a1b3", fontSize: 11 }} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => fmt(v, 0)} />
                       <Tooltip content={<SimpleTip unit="kg" k="kg" decimals={1} />} />
-                      <Line dataKey="kg" stroke="#f4f4f5" strokeWidth={2.5} dot={{ r: 3, fill: "#f4f4f5", strokeWidth: 0 }} type="monotone" />
+                      <Line dataKey="kg" stroke="#7c3aed" strokeWidth={2.5} dot={{ r: 3, fill: "#7c3aed", strokeWidth: 0 }} type="monotone" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

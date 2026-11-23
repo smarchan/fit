@@ -137,8 +137,8 @@ export function StepsSheet({ date, body, steps, workouts, onClose, onSaved, onSe
       }
     >
       <NumInput value={v} onChange={setV} suffix="pasos" inputMode="numeric" autoFocus />
-      <div className="est" style={{ background: "var(--accent-soft)", borderColor: "rgba(212,255,58,.25)" }}>
-        <span className="v num" style={{ color: "var(--accent)" }}>+{fmt(kcal)}</span>
+      <div className="est" style={{ background: "var(--steps-soft)", borderColor: "rgba(16,185,129,.3)" }}>
+        <span className="v num" style={{ color: "var(--steps)" }}>+{fmt(kcal)}</span>
         <span className="muted">kcal a tu objetivo</span>
       </div>
       <div className="hint">

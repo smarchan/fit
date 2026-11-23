@@ -9,21 +9,21 @@ export const metadata: Metadata = {
   title: "Fit",
   description: "Calorías que se ajustan a tus pasos y entrenos. Escanea lo que comes.",
   robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: "Fit", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Fit", statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { themeColor: "#09090b", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#f4f6fb", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 const appearance = {
   variables: {
-    colorPrimary: "#d4ff3a",
-    colorPrimaryForeground: "#0b0d00",
-    colorBackground: "#121215",
-    colorForeground: "#f4f4f5",
-    colorMutedForeground: "#9d9da7",
-    colorInput: "#09090b",
-    colorInputForeground: "#f4f4f5",
-    colorNeutral: "#f4f4f5",
+    colorPrimary: "#2563eb",
+    colorPrimaryForeground: "#ffffff",
+    colorBackground: "#ffffff",
+    colorForeground: "#0e1525",
+    colorMutedForeground: "#5d6679",
+    colorInput: "#ffffff",
+    colorInputForeground: "#0e1525",
+    colorNeutral: "#0e1525",
     borderRadius: "12px",
     fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif",
   },

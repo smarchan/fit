@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Calorías que se ajustan a tu actividad",
     start_url: "/",
     display: "standalone",
-    background_color: "#09090b",
-    theme_color: "#09090b",
+    background_color: "#f4f6fb",
+    theme_color: "#f4f6fb",
     icons: [
       { src: "/icon", sizes: "512x512", type: "image/png" },
       { src: "/apple-icon", sizes: "180x180", type: "image/png" },

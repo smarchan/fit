@@ -4,7 +4,7 @@ import type { Food } from "../types";
 import { cacheFood, cachedFood } from "./repo";
 import { OFF_FIELDS, parseOff } from "../off";
 
-const UA = "Fit/1.0 (app personal de nutricion; https://github.com/smarchan/fit)";
+const UA = "Fit/1.0 (app personal de nutricion; https://github.com/smarchan/smarchan-fit)";
 
 /** Product by barcode: DB cache (30 days) → Open Food Facts. null = not found, "error" = OFF unavailable. */
 export async function lookupBarcode(db: Db, code: string): Promise<Food | null | "error"> {

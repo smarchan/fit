@@ -233,7 +233,7 @@ function Integrations({ profile, onProfile, toast, onSync, syncing, focus }: { p
       {/* Apple Health via Shortcut */}
       <div ref={appleRef} className="set-section" style={{ gap: 10 }}>
         <div className="set-row">
-          <span className="int-ico" style={{ background: "#fff", color: "#ff2d55" }}>♥</span>
+          <span className="int-ico" style={{ background: "#ffe4ea", color: "#ff2d55" }}>♥</span>
           <div className="grow">
             <div className="t">Apple Salud · pasos</div>
             <div className="s">Con un Atajo de iOS que envía tus pasos</div>
@@ -291,7 +291,7 @@ function Integrations({ profile, onProfile, toast, onSync, syncing, focus }: { p
       {/* Hevy */}
       <div className="set-section" style={{ gap: 10 }}>
         <div className="set-row">
-          <span className="int-ico" style={{ background: "#1f2a44", color: "#8fb2ff" }}>H</span>
+          <span className="int-ico" style={{ background: "#e7eeff", color: "#2546b8" }}>H</span>
           <div className="grow">
             <div className="t">Hevy</div>
             <div className="s">Importa tus entrenos de gimnasio (necesita Hevy Pro)</div>
