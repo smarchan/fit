@@ -1,15 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Entry, Food, Meal } from "@/lib/types";
+import type { Entry, Food, Meal, Recipe } from "@/lib/types";
 import { MEALS, MEAL_LABEL } from "@/lib/types";
 import { nutrition } from "@/lib/energy";
+import { recipeAsFood, recipePerServing } from "@/lib/recipes";
 import { api, fmt } from "@/lib/client";
 import { NumInput, parseNum, Sheet } from "./ui";
-import { IClock, IEdit, IPlus, IScan, ISearch, ITrash } from "./icons";
+import { IBook, IClock, IEdit, IPlus, IScan, ISearch, ITrash } from "./icons";
 import Scanner from "./Scanner";
 
-type Tab = "scan" | "search" | "recent" | "create";
+export type AddTab = "scan" | "search" | "recent" | "recipes" | "create";
+type Tab = AddTab;
+
+/** Values of a logged entry that can be corrected (nutrition per 100 g). */
+export interface EntryEdit {
+  name: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  date: string;
+}
 interface Recent {
   food: Food;
   grams: number;
@@ -22,12 +34,24 @@ export function entryPayload(food: Food, grams: number, meal: Meal, date: string
 
 const defaultGrams = (f: Food) => f.servingG ?? 100;
 
-export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdded }: { date: string; meal: Meal; initialTab: Tab; onClose: () => void; onAdded: (e: Entry, undo: boolean) => void }) {
+export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdded, onRecipe, pick }: {
+  date: string;
+  meal: Meal;
+  initialTab: Tab;
+  onClose: () => void;
+  onAdded: (e: Entry, undo: boolean) => void;
+  /** Open the recipe editor: with a recipe to edit it, or null for a new one. */
+  onRecipe: (r: Recipe | null) => void;
+  /** Ingredient picker mode: returns the food and amount instead of logging it. */
+  pick?: (food: Food, grams: number) => void;
+}) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [meal, setMeal] = useState<Meal>(meal0);
   const [selected, setSelected] = useState<{ food: Food; grams: number } | null>(null);
   const [recent, setRecent] = useState<Recent[] | null>(null);
   const [custom, setCustom] = useState<Food[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[] | null>(null);
+  const [editing, setEditing] = useState<Food | null>(null);
   const [lookup, setLookup] = useState<{ code: string; state: "loading" | "missing" | "error"; msg?: string } | null>(null);
 
   useEffect(() => {
@@ -37,9 +61,17 @@ export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdde
         setCustom(r.custom);
       })
       .catch(() => setRecent([]));
-  }, []);
+    if (!pick)
+      api<{ recipes: Recipe[] }>("/api/recipes")
+        .then((r) => setRecipes(r.recipes))
+        .catch(() => setRecipes([]));
+  }, [pick]);
 
   const add = async (food: Food, grams: number, m = meal, quick = false) => {
+    if (pick) {
+      pick(food, grams);
+      return;
+    }
     const { entry } = await api<{ entry: Entry }>("/api/entries", { method: "POST", body: entryPayload(food, grams, m, date) });
     onAdded(entry, quick);
   };
@@ -64,11 +96,26 @@ export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdde
         meal={meal}
         onBack={() => setSelected(null)}
         onClose={onClose}
+        cta={pick ? "Añadir al ingrediente" : undefined}
         onSubmit={async (g, m) => {
           await add(selected.food, g, m);
           setMeal(m);
         }}
       />
+    );
+  }
+
+  if (editing) {
+    return (
+      <Sheet title="Editar alimento" onClose={() => setEditing(null)}>
+        <CreateTab
+          initial={editing}
+          onDone={(f) => {
+            setCustom((c) => c.map((x) => (x.id === f.id ? f : x)));
+            setEditing(null);
+          }}
+        />
+      </Sheet>
     );
   }
 
@@ -79,9 +126,12 @@ export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdde
           ["scan", "Escanear", <IScan size={16} key="i" />],
           ["search", "Buscar", <ISearch size={16} key="i" />],
           ["recent", "Recientes", <IClock size={16} key="i" />],
+          ["recipes", "Recetas", <IBook size={16} key="i" />],
           ["create", "Crear", <IEdit size={16} key="i" />],
         ] as const
-      ).map(([k, l, i]) => (
+      )
+        .filter(([k]) => !(pick && k === "recipes"))
+        .map(([k, l, i]) => (
         <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>
           {i}
           {l}
@@ -91,14 +141,16 @@ export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdde
   );
 
   return (
-    <Sheet title={MEAL_LABEL[meal]} onClose={onClose} tall head={tabs}>
-      <div className="chips scroll" role="group" aria-label="Comida">
-        {MEALS.map((m) => (
-          <button key={m} className="chip" aria-pressed={meal === m} onClick={() => setMeal(m)}>
-            {MEAL_LABEL[m]}
-          </button>
-        ))}
-      </div>
+    <Sheet title={pick ? "Añadir ingrediente" : MEAL_LABEL[meal]} onClose={onClose} tall head={tabs}>
+      {!pick && (
+        <div className="chips scroll" role="group" aria-label="Comida">
+          {MEALS.map((m) => (
+            <button key={m} className="chip" aria-pressed={meal === m} onClick={() => setMeal(m)}>
+              {MEAL_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === "scan" && (
         <>
@@ -129,15 +181,17 @@ export default function AddFood({ date, meal: meal0, initialTab, onClose, onAdde
           custom={custom}
           onPick={(f, g) => setSelected({ food: f, grams: g })}
           onQuick={(f, g) => add(f, g, meal, true)}
+          onEditCustom={setEditing}
           onDeleteCustom={async (id) => {
             await api(`/api/foods/${encodeURIComponent(id)}`, { method: "DELETE" });
             setCustom((c) => c.filter((x) => x.id !== id));
           }}
         />
       )}
+      {tab === "recipes" && <RecipesTab recipes={recipes} onPick={(f) => setSelected({ food: f, grams: defaultGrams(f) })} onQuick={(f) => add(f, defaultGrams(f), meal, true)} onRecipe={onRecipe} />}
       {tab === "create" && (
         <CreateTab
-          onCreated={(f) => {
+          onDone={(f) => {
             setCustom((c) => [f, ...c]);
             setSelected({ food: f, grams: defaultGrams(f) });
           }}
@@ -223,7 +277,7 @@ function SearchTab({ onPick, onQuick }: { onPick: (f: Food) => void; onQuick: (f
   );
 }
 
-function RecentTab({ recent, custom, onPick, onQuick, onDeleteCustom }: { recent: Recent[] | null; custom: Food[]; onPick: (f: Food, g: number) => void; onQuick: (f: Food, g: number) => void; onDeleteCustom: (id: string) => void }) {
+function RecentTab({ recent, custom, onPick, onQuick, onEditCustom, onDeleteCustom }: { recent: Recent[] | null; custom: Food[]; onPick: (f: Food, g: number) => void; onQuick: (f: Food, g: number) => void; onEditCustom: (f: Food) => void; onDeleteCustom: (id: string) => void }) {
   if (!recent) return <div className="spin" />;
   if (!recent.length && !custom.length)
     return (
@@ -251,9 +305,14 @@ function RecentTab({ recent, custom, onPick, onQuick, onDeleteCustom }: { recent
                 onPick={() => onPick(f, defaultGrams(f))}
                 onQuick={() => onQuick(f, defaultGrams(f))}
                 extra={
-                  <button className="quick-add" onClick={() => onDeleteCustom(f.id)} aria-label={`Borrar ${f.name}`} style={{ background: "transparent", color: "var(--faint)" }}>
-                    <ITrash size={16} />
-                  </button>
+                  <>
+                    <button className="quick-add" onClick={() => onEditCustom(f)} aria-label={`Editar ${f.name}`} style={{ background: "transparent", color: "var(--faint)" }}>
+                      <IEdit size={16} />
+                    </button>
+                    <button className="quick-add" onClick={() => onDeleteCustom(f.id)} aria-label={`Borrar ${f.name}`} style={{ background: "transparent", color: "var(--faint)" }}>
+                      <ITrash size={16} />
+                    </button>
+                  </>
                 }
               />
             ))}
@@ -264,8 +323,58 @@ function RecentTab({ recent, custom, onPick, onQuick, onDeleteCustom }: { recent
   );
 }
 
-function CreateTab({ onCreated }: { onCreated: (f: Food) => void }) {
-  const [v, setV] = useState({ name: "", brand: "", kcal: "", protein: "", carbs: "", fat: "", servingG: "" });
+function RecipesTab({ recipes, onPick, onQuick, onRecipe }: { recipes: Recipe[] | null; onPick: (f: Food) => void; onQuick: (f: Food) => void; onRecipe: (r: Recipe | null) => void }) {
+  if (!recipes) return <div className="spin" />;
+  return (
+    <>
+      <button className="btn block" onClick={() => onRecipe(null)}>
+        <IPlus size={16} />
+        Nueva receta
+      </button>
+      {recipes.length === 0 ? (
+        <div className="empty">
+          <b>Aún no tienes recetas</b>Crea una con sus ingredientes, o guarda una comida ya registrada desde Hoy.
+        </div>
+      ) : (
+        <ul className="results">
+          {recipes.map((r) => {
+            const food = recipeAsFood(r);
+            const ps = recipePerServing(r);
+            return (
+              <li key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 6 }}>
+                <button className="result" onClick={() => onPick(food)}>
+                  <Thumb food={food} />
+                  <span style={{ minWidth: 0 }}>
+                    <span className="n">{r.name}</span>
+                    <span className="d">
+                      {[r.servings === 1 ? "1 ración" : `${fmt(r.servings, 2)} raciones`, `P ${fmt(ps.protein)} · H ${fmt(ps.carbs)} · G ${fmt(ps.fat)}`].join(" · ")}
+                    </span>
+                  </span>
+                  <span className="k num">
+                    {fmt(ps.kcal)}
+                    <small>kcal/ración</small>
+                  </span>
+                </button>
+                <span style={{ display: "flex", gap: 4 }}>
+                  <button className="quick-add" onClick={() => onRecipe(r)} aria-label={`Editar ${r.name}`} style={{ background: "transparent", color: "var(--faint)" }}>
+                    <IEdit size={16} />
+                  </button>
+                  <button className="quick-add" onClick={() => onQuick(food)} aria-label={`Añadir ${r.name}`}>
+                    <IPlus size={16} />
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function CreateTab({ initial, onDone }: { initial?: Food; onDone: (f: Food) => void }) {
+  const txt = (n: number | null | undefined) => (n == null ? "" : String(Math.round(n * 100) / 100).replace(".", ","));
+  const [v, setV] = useState({ name: initial?.name ?? "", brand: initial?.brand ?? "", kcal: txt(initial?.kcal), protein: txt(initial?.protein), carbs: txt(initial?.carbs), fat: txt(initial?.fat), servingG: txt(initial?.servingG) });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof v) => (x: string) => setV((s) => ({ ...s, [k]: x }));
@@ -276,9 +385,9 @@ function CreateTab({ onCreated }: { onCreated: (f: Food) => void }) {
     try {
       const { food } = await api<{ food: Food }>("/api/foods", {
         method: "POST",
-        body: { name: v.name, brand: v.brand, kcal: parseNum(v.kcal), protein: parseNum(v.protein) ?? 0, carbs: parseNum(v.carbs) ?? 0, fat: parseNum(v.fat) ?? 0, servingG: parseNum(v.servingG) },
+        body: { id: initial?.id, name: v.name, brand: v.brand, kcal: parseNum(v.kcal), protein: parseNum(v.protein) ?? 0, carbs: parseNum(v.carbs) ?? 0, fat: parseNum(v.fat) ?? 0, servingG: parseNum(v.servingG) },
       });
-      onCreated(food);
+      onDone(food);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -320,7 +429,7 @@ function CreateTab({ onCreated }: { onCreated: (f: Food) => void }) {
       </div>
       {err && <div className="err">{err}</div>}
       <button className="btn primary block" disabled={busy || !v.name.trim() || parseNum(v.kcal) == null}>
-        Guardar y añadir
+        {initial ? "Guardar cambios" : "Guardar y añadir"}
       </button>
     </form>
   );
@@ -329,7 +438,7 @@ function CreateTab({ onCreated }: { onCreated: (f: Food) => void }) {
 /* ---------------- Food detail (add or edit) ---------------- */
 
 export function FoodSheet({
-  food,
+  food: food0,
   grams: g0,
   meal: m0,
   onSubmit,
@@ -337,22 +446,37 @@ export function FoodSheet({
   onBack,
   onDelete,
   edit,
+  date: date0,
+  cta,
 }: {
   food: Food;
   grams: number;
   meal: Meal;
-  onSubmit: (grams: number, meal: Meal) => Promise<void>;
+  /** `extra` is sent only when editing a logged entry: its name, nutrition per 100 g and date. */
+  onSubmit: (grams: number, meal: Meal, extra?: EntryEdit) => Promise<void>;
   onClose: () => void;
   onBack?: () => void;
   onDelete?: () => Promise<void>;
   edit?: boolean;
+  date?: string;
+  /** Replaces the "Añadir · N kcal" label (ingredient picker). */
+  cta?: string;
 }) {
-  const serving = food.servingG;
+  const serving = food0.servingG;
   const [unit, setUnit] = useState<"g" | "s">(serving && !edit && g0 === serving ? "s" : "g");
   const [raw, setRaw] = useState(unit === "s" && serving ? "1" : String(Math.round(g0 * 10) / 10).replace(".", ","));
   const [meal, setMeal] = useState(m0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const txt = (x: number) => String(Math.round(x * 100) / 100).replace(".", ",");
+  const [vals, setVals] = useState({ name: food0.name, kcal: txt(food0.kcal), protein: txt(food0.protein), carbs: txt(food0.carbs), fat: txt(food0.fat) });
+  const [day, setDay] = useState(date0 ?? "");
+  const setVal = (k: keyof typeof vals) => (x: string) => setVals((s) => ({ ...s, [k]: x }));
+  // While editing, everything on screen follows the values typed in "Editar datos".
+  const food: Food = useMemo(
+    () => (edit ? { ...food0, name: vals.name.trim() || food0.name, kcal: parseNum(vals.kcal) ?? 0, protein: parseNum(vals.protein) ?? 0, carbs: parseNum(vals.carbs) ?? 0, fat: parseNum(vals.fat) ?? 0 } : food0),
+    [edit, food0, vals],
+  );
   const qty = parseNum(raw) ?? 0;
   const grams = unit === "s" && serving ? qty * serving : qty;
   const n = useMemo(() => nutrition(food, grams), [food, grams]);
@@ -370,7 +494,11 @@ export function FoodSheet({
     setBusy(true);
     setErr("");
     try {
-      await onSubmit(Math.round(grams * 10) / 10, meal);
+      await onSubmit(
+        Math.round(grams * 10) / 10,
+        meal,
+        edit ? { name: food.name, kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, date: day || date0 || "" } : undefined,
+      );
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -416,7 +544,7 @@ export function FoodSheet({
             </button>
           )}
           <button className="btn primary" onClick={submit} disabled={busy || grams <= 0}>
-            {edit ? "Guardar" : `Añadir · ${fmt(n.kcal)} kcal`}
+            {edit ? "Guardar" : cta ?? `Añadir · ${fmt(n.kcal)} kcal`}
           </button>
         </>
       }
@@ -492,16 +620,55 @@ export function FoodSheet({
         {food.servingLabel && <div className="hint">Ración del envase: {food.servingLabel}</div>}
       </div>
 
-      <div className="field">
-        <span className="lbl">Comida</span>
-        <div className="chips scroll">
-          {MEALS.map((m) => (
-            <button key={m} className="chip" aria-pressed={meal === m} onClick={() => setMeal(m)}>
-              {MEAL_LABEL[m]}
-            </button>
-          ))}
+      {!cta && (
+        <div className="field">
+          <span className="lbl">Comida</span>
+          <div className="chips scroll">
+            {MEALS.map((m) => (
+              <button key={m} className="chip" aria-pressed={meal === m} onClick={() => setMeal(m)}>
+                {MEAL_LABEL[m]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {edit && (
+        <details className="more">
+          <summary>Editar datos ›</summary>
+          <div className="stack" style={{ marginTop: 12 }}>
+            <div className="field">
+              <label htmlFor="ed-n">Nombre</label>
+              <input id="ed-n" className="input" value={vals.name} onChange={(e) => setVal("name")(e.target.value)} />
+            </div>
+            <div className="lbl">Por cada 100 g</div>
+            <div className="row">
+              <div className="field">
+                <label>Calorías</label>
+                <NumInput value={vals.kcal} onChange={setVal("kcal")} suffix="kcal" />
+              </div>
+              <div className="field">
+                <label>Proteína</label>
+                <NumInput value={vals.protein} onChange={setVal("protein")} suffix="g" />
+              </div>
+              <div className="field">
+                <label>Hidratos</label>
+                <NumInput value={vals.carbs} onChange={setVal("carbs")} suffix="g" />
+              </div>
+              <div className="field">
+                <label>Grasa</label>
+                <NumInput value={vals.fat} onChange={setVal("fat")} suffix="g" />
+              </div>
+            </div>
+            {date0 && (
+              <div className="field">
+                <label htmlFor="ed-d">Día</label>
+                <input id="ed-d" className="input" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       <table className="ntable">
         <thead>

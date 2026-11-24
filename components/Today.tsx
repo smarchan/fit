@@ -6,7 +6,7 @@ import { MEALS, MEAL_LABEL, WORKOUT_LABEL } from "@/lib/types";
 import { budget, macroTargets, nutrition, totals, type Budget } from "@/lib/energy";
 import { ago, api, fmt } from "@/lib/client";
 import { NumInput, parseNum, Ring, useTween } from "./ui";
-import { IFoot, IPlus, IScale, IWorkout } from "./icons";
+import { IBook, IEdit, IFoot, IPlus, IScale, IWorkout } from "./icons";
 
 export interface TodayActions {
   addFood: (meal: Meal) => void;
@@ -16,13 +16,15 @@ export interface TodayActions {
   editSteps: () => void;
   editWeight: () => void;
   copyMeal: (meal: Meal) => void;
+  editGoal: () => void;
+  mealToRecipe: (meal: Meal) => void;
 }
 
 export function useBudget(profile: Profile, day: DayData) {
   return useMemo(() => {
-    const b = budget(profile, day.steps?.steps ?? 0, day.workouts);
+    const b = budget(profile, day.steps?.steps ?? 0, day.workouts, undefined, day.goal?.kcal ?? null);
     const t = totals(day.entries);
-    return { b, t, m: macroTargets(profile, b.target) };
+    return { b, t, m: macroTargets(profile, b.target, day.goal) };
   }, [profile, day]);
 }
 
@@ -31,8 +33,15 @@ export default function Today({ profile, day, isToday, actions }: { profile: Pro
   return (
     <div className="cols">
       <div className="stack">
-        <Hero b={b} consumed={t.kcal} />
+        <Hero b={b} consumed={t.kcal} onEdit={actions.editGoal} />
         <div className="card">
+          <div className="card-h">
+            <span className="card-t">Macros</span>
+            <span className="spacer" />
+            <button className="icon-btn" onClick={actions.editGoal} aria-label="Editar objetivo del día">
+              <IEdit size={16} />
+            </button>
+          </div>
           <div className="macros">
             <MacroBar name="Proteína" v={t.protein} max={m.protein} color="var(--protein)" />
             <MacroBar name="Hidratos" v={t.carbs} max={m.carbs} color="var(--carbs)" />
@@ -113,7 +122,7 @@ export default function Today({ profile, day, isToday, actions }: { profile: Pro
   );
 }
 
-function Hero({ b, consumed }: { b: Budget; consumed: number }) {
+function Hero({ b, consumed, onEdit }: { b: Budget; consumed: number; onEdit: () => void }) {
   const remaining = b.target - consumed;
   const over = remaining < 0;
   const shown = useTween(Math.abs(remaining));
@@ -131,10 +140,13 @@ function Hero({ b, consumed }: { b: Budget; consumed: number }) {
         </div>
       </div>
       <div className="hero-stats">
-        <div className="hs">
+        <button className="hs hs-btn" onClick={onEdit} aria-label="Editar objetivo del día">
           <div className="v num">{fmt(b.target)}</div>
-          <div className="k">Objetivo</div>
-        </div>
+          <div className="k">
+            Objetivo
+            <IEdit size={12} />
+          </div>
+        </button>
         <div className="hs">
           <div className="v num">{fmt(consumed)}</div>
           <div className="k">
@@ -150,6 +162,16 @@ function Hero({ b, consumed }: { b: Budget; consumed: number }) {
           </div>
         </div>
       </div>
+      {b.manual ? (
+        <div className="equation">
+          <div className="eq-items">
+            <span>
+              <i style={{ background: "var(--accent)" }} />
+              Objetivo fijado por ti · automático <b className="num">{fmt(b.auto)}</b>
+            </span>
+          </div>
+        </div>
+      ) : (
       <div className="equation">
         <div className="eq-bar" aria-hidden="true">
           <span style={{ flexGrow: b.base, background: "var(--line-strong)" }} />
@@ -179,6 +201,7 @@ function Hero({ b, consumed }: { b: Budget; consumed: number }) {
           </span>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -239,6 +262,12 @@ function MealCard({ meal, entries, actions }: { meal: Meal; entries: Entry[]; ac
             );
           })}
         </ul>
+      )}
+      {entries.length > 1 && (
+        <button className="meal-save" onClick={() => actions.mealToRecipe(meal)}>
+          <IBook size={14} />
+          Guardar como receta
+        </button>
       )}
     </div>
   );

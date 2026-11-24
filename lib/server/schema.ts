@@ -81,4 +81,27 @@ export const SCHEMA = [
     fetched_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS foods_owner ON foods (owner)`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS protein_g int`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS carbs_g int`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS fat_g int`,
+  `CREATE TABLE IF NOT EXISTS day_goals (
+    user_id text NOT NULL,
+    date    date NOT NULL,
+    kcal    int,
+    protein int,
+    carbs   int,
+    fat     int,
+    PRIMARY KEY (user_id, date)
+  )`,
+  `CREATE TABLE IF NOT EXISTS recipes (
+    id         text PRIMARY KEY,
+    user_id    text NOT NULL,
+    name       text NOT NULL,
+    servings   numeric NOT NULL DEFAULT 1 CHECK (servings > 0),
+    total_g    numeric CHECK (total_g > 0),
+    items      jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS recipes_user ON recipes (user_id)`,
 ];

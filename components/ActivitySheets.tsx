@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { Body, Intensity, Workout, WorkoutType } from "@/lib/types";
+import type { Body, DayGoal, Intensity, Workout, WorkoutType } from "@/lib/types";
 import { INTENSITY_LABEL, WORKOUT_LABEL, WORKOUT_TYPES } from "@/lib/types";
-import { estimateWorkout, stepKcal, weightOf, STEP_BASELINE } from "@/lib/energy";
+import { estimateWorkout, macroTargets, stepKcal, weightOf, STEP_BASELINE } from "@/lib/energy";
 import { api, fmt } from "@/lib/client";
 import { NumInput, parseNum, Sheet } from "./ui";
 import { ITrash, IWorkout } from "./icons";
@@ -184,6 +184,93 @@ export function WeightSheet({ date, current, onClose, onSaved }: { date: string;
     >
       <NumInput value={v} onChange={setV} suffix="kg" autoFocus />
       <div className="hint">Tu objetivo de calorías y proteína se recalcula con el último peso.</div>
+      {err && <div className="err">{err}</div>}
+    </Sheet>
+  );
+}
+
+/** Targets for one day: calories and grams. Blank = automatic. */
+export function GoalSheet({ date, body, auto, current, onClose, onSaved }: { date: string; body: Body; auto: number; current: DayGoal | null; onClose: () => void; onSaved: (msg: string) => void }) {
+  const str = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
+  const [kcal, setKcal] = useState(str(current?.kcal));
+  const [protein, setProtein] = useState(str(current?.protein));
+  const [carbs, setCarbs] = useState(str(current?.carbs));
+  const [fat, setFat] = useState(str(current?.fat));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const k = parseNum(kcal);
+  // What each blank field would be, given the calories typed so far.
+  const calc = macroTargets(body, k ?? auto);
+  const any = [kcal, protein, carbs, fat].some((x) => x.trim() !== "");
+
+  const save = async (reset = false) => {
+    setBusy(true);
+    setErr("");
+    try {
+      const v = reset ? { kcal: null, protein: null, carbs: null, fat: null } : { kcal: k, protein: parseNum(protein), carbs: parseNum(carbs), fat: parseNum(fat) };
+      await api("/api/goals", { method: "PUT", body: { date, ...v } });
+      onSaved(reset || !any ? "Objetivo automático" : "Objetivo del día guardado");
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+  const alwaysMacros = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      await api("/api/profile", { method: "PUT", body: { proteinG: parseNum(protein), carbsG: parseNum(carbs), fatG: parseNum(fat) } });
+      await api("/api/goals", { method: "PUT", body: { date, kcal: k, protein: null, carbs: null, fat: null } });
+      onSaved("Gramos guardados para todos los días");
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      title="Objetivo del día"
+      onClose={onClose}
+      footer={
+        <>
+          {current && (
+            <button className="btn ghost" style={{ flex: "0 0 auto" }} onClick={() => save(true)} disabled={busy}>
+              Restablecer
+            </button>
+          )}
+          <button className="btn primary" onClick={() => save()} disabled={busy}>
+            Guardar
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label htmlFor="g-k">Calorías</label>
+        <NumInput id="g-k" value={kcal} onChange={setKcal} suffix="kcal" placeholder={String(auto)} inputMode="numeric" autoFocus />
+        <div className="hint">Automático: {fmt(auto)} kcal (base + pasos + entrenos). Si escribes una cifra, sustituye al cálculo solo este día.</div>
+      </div>
+      <div className="row-3">
+        <div className="field">
+          <label>Proteína</label>
+          <NumInput value={protein} onChange={setProtein} suffix="g" placeholder={String(calc.protein)} inputMode="numeric" />
+        </div>
+        <div className="field">
+          <label>Hidratos</label>
+          <NumInput value={carbs} onChange={setCarbs} suffix="g" placeholder={String(calc.carbs)} inputMode="numeric" />
+        </div>
+        <div className="field">
+          <label>Grasa</label>
+          <NumInput value={fat} onChange={setFat} suffix="g" placeholder={String(calc.fat)} inputMode="numeric" />
+        </div>
+      </div>
+      <div className="hint">Lo que dejes en blanco se calcula solo.</div>
+      {(protein.trim() !== "" || carbs.trim() !== "" || fat.trim() !== "") && (
+        <button className="btn block" onClick={alwaysMacros} disabled={busy}>
+          Usar estos gramos todos los días
+        </button>
+      )}
       {err && <div className="err">{err}</div>}
     </Sheet>
   );

@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DayData, Entry, Food, HistoryDay, Meal, Profile, Workout } from "@/lib/types";
+import type { DayData, Entry, Food, HistoryDay, Meal, Profile, RecipeDraft, Workout } from "@/lib/types";
 import { MEAL_LABEL } from "@/lib/types";
 import { addDays, dayLabel, todayLocal, weekdayLetter } from "@/lib/dates";
 import { api, mealNow } from "@/lib/client";
 import { budget } from "@/lib/energy";
 import Today, { Onboarding } from "./Today";
-import AddFood, { entryPayload, FoodSheet } from "./AddFood";
-import { StepsSheet, WeightSheet, WorkoutSheet } from "./ActivitySheets";
+import AddFood, { entryPayload, FoodSheet, type AddTab } from "./AddFood";
+import { RecipeEditor } from "./Recipes";
+import { GoalSheet, StepsSheet, WeightSheet, WorkoutSheet } from "./ActivitySheets";
 import Progress from "./Progress";
 import Settings from "./Settings";
 import Account from "./Account";
@@ -17,7 +18,9 @@ import { IChart, IChevL, IChevR, IFlame, IHome, IScan, ISettings, IWorkout } fro
 
 type Tab = "hoy" | "progreso" | "ajustes";
 type SheetState =
-  | { kind: "food"; meal: Meal; tab: "scan" | "search" | "recent" | "create" }
+  | { kind: "food"; meal: Meal; tab: AddTab }
+  | { kind: "goal" }
+  | { kind: "recipe"; draft: RecipeDraft; back: Meal | null }
   | { kind: "entry"; entry: Entry }
   | { kind: "workout"; workout?: Workout }
   | { kind: "steps" }
@@ -209,6 +212,20 @@ export default function App({ devAuth }: { devAuth: boolean }) {
                   editWorkout: (workout) => setSheet({ kind: "workout", workout }),
                   editSteps: () => setSheet({ kind: "steps" }),
                   editWeight: () => setSheet({ kind: "weight" }),
+                  editGoal: () => setSheet({ kind: "goal" }),
+                  mealToRecipe: (meal) =>
+                    setSheet({
+                      kind: "recipe",
+                      back: null,
+                      draft: {
+                        name: "",
+                        servings: 1,
+                        totalG: null,
+                        items: day.entries
+                          .filter((e) => e.meal === meal)
+                          .map((e) => ({ foodId: e.foodId, name: e.name, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, image: e.image })),
+                      },
+                    }),
                   copyMeal: async (meal) => {
                     const r = await api<{ copied: number }>("/api/entries/copy", { method: "POST", body: { from: addDays(date, -1), to: date, meal } });
                     say(r.copied ? `${MEAL_LABEL[meal]} de ayer copiada` : `Ayer no hubo ${MEAL_LABEL[meal].toLowerCase()}`);
@@ -267,6 +284,7 @@ export default function App({ devAuth }: { devAuth: boolean }) {
           meal={sheet.meal}
           initialTab={sheet.tab}
           onClose={() => setSheet(null)}
+          onRecipe={(r) => setSheet({ kind: "recipe", back: sheet.meal, draft: r ?? { name: "", servings: 1, totalG: null, items: [] } })}
           onAdded={(entry, quick) => {
             if (!quick) setSheet(null);
             say(`${entry.name.slice(0, 28)} añadido`, {
@@ -287,9 +305,10 @@ export default function App({ devAuth }: { devAuth: boolean }) {
           grams={sheet.entry.grams}
           meal={sheet.entry.meal}
           onClose={() => setSheet(null)}
-          onSubmit={async (grams, meal) => {
-            await api(`/api/entries/${sheet.entry.id}`, { method: "PATCH", body: { grams, meal } });
-            closeAndRefresh();
+          date={sheet.entry.date}
+          onSubmit={async (grams, meal, extra) => {
+            await api(`/api/entries/${sheet.entry.id}`, { method: "PATCH", body: { grams, meal, ...extra } });
+            closeAndRefresh(extra?.date && extra.date !== sheet.entry.date ? "Movido a otro día" : undefined);
           }}
           onDelete={async () => {
             const e = sheet.entry;
@@ -303,6 +322,27 @@ export default function App({ devAuth }: { devAuth: boolean }) {
               },
             });
             refresh();
+          }}
+        />
+      )}
+      {sheet?.kind === "goal" && profile && day && (
+        <GoalSheet
+          date={date}
+          body={profile}
+          auto={budget(profile, day.steps?.steps ?? 0, day.workouts).auto}
+          current={day.goal}
+          onClose={() => setSheet(null)}
+          onSaved={closeAndRefresh}
+        />
+      )}
+      {sheet?.kind === "recipe" && (
+        <RecipeEditor
+          draft={sheet.draft}
+          onClose={() => setSheet(sheet.back ? { kind: "food", meal: sheet.back, tab: "recipes" } : null)}
+          onSaved={(msg) => {
+            say(msg);
+            refresh();
+            setSheet(sheet.back ? { kind: "food", meal: sheet.back, tab: "recipes" } : null);
           }}
         />
       )}

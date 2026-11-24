@@ -42,7 +42,40 @@ export interface Body {
   proteinPerKg: number;
   /** Share (0–1) of the target that comes from fat. */
   fatPct: number;
+  /** Own gram targets. null = calculated (protein from g/kg, fat from %, carbs the remainder). */
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
 }
+
+/** Targets typed for one specific day. Any field left null stays automatic. */
+export interface DayGoal {
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+}
+
+export interface RecipeItem extends Per100 {
+  foodId: string | null;
+  name: string;
+  brand: string | null;
+  /** Raw amount in the recipe. */
+  grams: number;
+  image: string | null;
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  servings: number;
+  /** Final weight of the cooked dish; null = sum of the ingredients. */
+  totalG: number | null;
+  items: RecipeItem[];
+  updatedAt: string;
+}
+
+export type RecipeDraft = Omit<Recipe, "id" | "updatedAt"> & { id?: string };
 
 export interface Profile extends Body {
   tz: string;
@@ -125,6 +158,7 @@ export interface DayData {
   workouts: Workout[];
   steps: Steps | null;
   weight: number | null;
+  goal: DayGoal | null;
 }
 
 export interface HistoryDay {

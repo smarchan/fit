@@ -105,17 +105,29 @@ export interface Budget {
   workouts: number;
   /** Part of `workouts` added to the target (eatBack). */
   workoutsCounted: number;
+  /** What base + goal + steps + workouts add up to. */
+  auto: number;
+  /** True when the user typed the target for this day. */
+  manual: boolean;
   target: number;
 }
 
-export function budget(b: Body, steps: number, workouts: Pick<Workout, "type" | "minutes" | "distanceKm" | "kcal">[], now = new Date()): Budget {
+/** `kcalOverride`: calories typed for this specific day; replaces the calculated target. */
+export function budget(
+  b: Body,
+  steps: number,
+  workouts: Pick<Workout, "type" | "minutes" | "distanceKm" | "kcal">[],
+  now = new Date(),
+  kcalOverride: number | null = null,
+): Budget {
   const kg = weightOf(b);
   const base = baseOf(b, now);
   const s = stepKcal(steps, workouts, kg);
   const w = workouts.reduce((t, x) => t + x.kcal, 0);
   const counted = round(w * clamp(b.eatBack, 0, 1));
-  const target = Math.max(1200, base + b.goalDelta + s + counted);
-  return { base, goal: b.goalDelta, steps: s, workouts: w, workoutsCounted: counted, target };
+  const auto = Math.max(1200, base + b.goalDelta + s + counted);
+  const manual = kcalOverride != null && kcalOverride > 0;
+  return { base, goal: b.goalDelta, steps: s, workouts: w, workoutsCounted: counted, auto, manual, target: manual ? round(kcalOverride) : auto };
 }
 
 export interface Macros {
@@ -125,11 +137,12 @@ export interface Macros {
   fat: number;
 }
 
-export function macroTargets(b: Body, target: number): Macros {
-  const protein = round(weightOf(b) * b.proteinPerKg);
-  const fat = round((target * clamp(b.fatPct, 0.1, 0.6)) / 9);
-  const carbs = Math.max(0, round((target - protein * 4 - fat * 9) / 4));
-  return { kcal: target, protein, carbs, fat };
+/** Macro targets in grams. Priority per macro: typed for the day, typed in settings, calculated. */
+export function macroTargets(b: Body, target: number, day?: { protein: number | null; carbs: number | null; fat: number | null } | null): Macros {
+  const protein = day?.protein ?? b.proteinG ?? round(weightOf(b) * b.proteinPerKg);
+  const fat = day?.fat ?? b.fatG ?? round((target * clamp(b.fatPct, 0.1, 0.6)) / 9);
+  const carbs = day?.carbs ?? b.carbsG ?? Math.max(0, round((target - protein * 4 - fat * 9) / 4));
+  return { kcal: target, protein: round(protein), carbs: round(carbs), fat: round(fat) };
 }
 
 export function nutrition(per100: Per100, grams: number): Macros {

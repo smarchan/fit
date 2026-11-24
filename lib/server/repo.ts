@@ -1,9 +1,11 @@
 import "server-only";
 import type { Db } from "./db";
-import type { Body, DayData, Entry, Food, HistoryDay, Profile, Steps, Workout, WorkoutDetails } from "../types";
+import type { Body, DayData, DayGoal, Entry, Food, HistoryDay, Profile, Recipe, RecipeDraft, RecipeItem, Steps, Workout, WorkoutDetails } from "../types";
+import type { EntryPatch } from "../validate";
 import { budget, totals } from "../energy";
 import { newId } from "./crypto";
 import { addDays } from "../dates";
+import { Invalid } from "../validate";
 
 type Row = Record<string, unknown>;
 
@@ -21,6 +23,9 @@ export const DEFAULT_BODY: Body = {
   eatBack: 0.75,
   proteinPerKg: 1.8,
   fatPct: 0.27,
+  proteinG: null,
+  carbsG: null,
+  fatG: null,
 };
 
 /* ---------------- Profile ---------------- */
@@ -60,6 +65,9 @@ export async function getProfile(db: Db, userId: string): Promise<ProfileRow> {
     eatBack: Number(r.eat_back),
     proteinPerKg: Number(r.protein_per_kg),
     fatPct: Number(r.fat_pct),
+    proteinG: n(r.protein_g),
+    carbsG: n(r.carbs_g),
+    fatG: n(r.fat_g),
     tz: String(r.tz),
     onboarded: Boolean(r.onboarded),
     hevy: r.hevy_key != null,
@@ -90,6 +98,9 @@ const PROFILE_COLS: Record<string, string> = {
   eatBack: "eat_back",
   proteinPerKg: "protein_per_kg",
   fatPct: "fat_pct",
+  proteinG: "protein_g",
+  carbsG: "carbs_g",
+  fatG: "fat_g",
   tz: "tz",
   onboarded: "onboarded",
   stepTokenHash: "step_token_hash",
@@ -163,11 +174,12 @@ function rowToWorkout(r: Row): Workout {
 }
 
 export async function getDay(db: Db, userId: string, date: string): Promise<DayData> {
-  const [entries, workouts, steps, weight] = await Promise.all([
+  const [entries, workouts, steps, weight, goal] = await Promise.all([
     db.query(`${ENTRY_SELECT} WHERE user_id = $1 AND date = $2 ORDER BY created_at`, [userId, date]),
     db.query(`${WORKOUT_SELECT} WHERE user_id = $1 AND date = $2 AND NOT hidden ORDER BY coalesce(start_at, created_at)`, [userId, date]),
     db.query("SELECT steps, source, updated_at FROM steps WHERE user_id = $1 AND date = $2", [userId, date]),
     db.query("SELECT kg FROM weights WHERE user_id = $1 AND date = $2", [userId, date]),
+    db.query("SELECT kcal, protein, carbs, fat FROM day_goals WHERE user_id = $1 AND date = $2", [userId, date]),
   ]);
   return {
     date,
@@ -175,7 +187,21 @@ export async function getDay(db: Db, userId: string, date: string): Promise<DayD
     workouts: workouts.map(rowToWorkout),
     steps: steps[0] ? { steps: Number(steps[0].steps), source: steps[0].source as Steps["source"], updatedAt: iso(steps[0].updated_at)! } : null,
     weight: weight[0] ? Number(weight[0].kg) : null,
+    goal: goal[0] ? { kcal: n(goal[0].kcal), protein: n(goal[0].protein), carbs: n(goal[0].carbs), fat: n(goal[0].fat) } : null,
   };
+}
+
+/** Targets typed for one day. All-null removes the row, so the day goes back to automatic. */
+export async function setDayGoal(db: Db, userId: string, date: string, g: DayGoal): Promise<void> {
+  if (g.kcal == null && g.protein == null && g.carbs == null && g.fat == null) {
+    await db.query("DELETE FROM day_goals WHERE user_id = $1 AND date = $2", [userId, date]);
+    return;
+  }
+  await db.query(
+    `INSERT INTO day_goals (user_id, date, kcal, protein, carbs, fat) VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (user_id, date) DO UPDATE SET kcal = EXCLUDED.kcal, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat`,
+    [userId, date, g.kcal, g.protein, g.carbs, g.fat],
+  );
 }
 
 /* ---------------- Entries ---------------- */
@@ -190,10 +216,12 @@ export async function addEntry(db: Db, userId: string, e: Omit<Entry, "id">): Pr
   return { id, ...e };
 }
 
-export async function updateEntry(db: Db, userId: string, id: string, p: { grams?: number; meal?: string }): Promise<boolean> {
+export async function updateEntry(db: Db, userId: string, id: string, p: EntryPatch): Promise<boolean> {
   const rows = await db.query(
-    `UPDATE entries SET grams = coalesce($3, grams), meal = coalesce($4, meal) WHERE id = $1 AND user_id = $2 RETURNING id`,
-    [id, userId, p.grams ?? null, p.meal ?? null],
+    `UPDATE entries SET grams = coalesce($3, grams), meal = coalesce($4, meal), date = coalesce($5::date, date), name = coalesce($6, name),
+       kcal = coalesce($7, kcal), protein = coalesce($8, protein), carbs = coalesce($9, carbs), fat = coalesce($10, fat)
+     WHERE id = $1 AND user_id = $2 RETURNING id`,
+    [id, userId, p.grams ?? null, p.meal ?? null, p.date ?? null, p.name ?? null, p.kcal ?? null, p.protein ?? null, p.carbs ?? null, p.fat ?? null],
   );
   return rows.length > 0;
 }
@@ -285,6 +313,40 @@ export async function customFoods(db: Db, userId: string): Promise<Food[]> {
 
 export async function deleteCustomFood(db: Db, userId: string, id: string): Promise<void> {
   await db.query("DELETE FROM foods WHERE id = $1 AND owner = $2", [id, userId]);
+}
+
+/* ---------------- Recipes ---------------- */
+
+function rowToRecipe(r: Row): Recipe {
+  const items = (typeof r.items === "string" ? JSON.parse(r.items) : r.items) as RecipeItem[];
+  return { id: String(r.id), name: String(r.name), servings: Number(r.servings), totalG: n(r.total_g), items, updatedAt: iso(r.updated_at)! };
+}
+
+export async function listRecipes(db: Db, userId: string): Promise<Recipe[]> {
+  const rows = await db.query("SELECT id, name, servings, total_g, items, updated_at FROM recipes WHERE user_id = $1 ORDER BY lower(name)", [userId]);
+  return rows.map(rowToRecipe);
+}
+
+export async function saveRecipe(db: Db, userId: string, r: RecipeDraft): Promise<Recipe> {
+  if (r.id) {
+    const rows = await db.query(
+      `UPDATE recipes SET name = $3, servings = $4, total_g = $5, items = $6, updated_at = now()
+       WHERE id = $1 AND user_id = $2 RETURNING id, name, servings, total_g, items, updated_at`,
+      [r.id, userId, r.name, r.servings, r.totalG, JSON.stringify(r.items)],
+    );
+    if (!rows[0]) throw new Invalid("La receta no existe");
+    return rowToRecipe(rows[0]);
+  }
+  const rows = await db.query(
+    `INSERT INTO recipes (id, user_id, name, servings, total_g, items) VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, name, servings, total_g, items, updated_at`,
+    [newId(), userId, r.name, r.servings, r.totalG, JSON.stringify(r.items)],
+  );
+  return rowToRecipe(rows[0]);
+}
+
+export async function deleteRecipe(db: Db, userId: string, id: string): Promise<void> {
+  await db.query("DELETE FROM recipes WHERE id = $1 AND user_id = $2", [id, userId]);
 }
 
 /* ---------------- Workouts ---------------- */
@@ -388,11 +450,12 @@ export async function setWeight(db: Db, userId: string, date: string, kg: number
 /* ---------------- History ---------------- */
 
 export async function history(db: Db, userId: string, body: Body, from: string, to: string): Promise<HistoryDay[]> {
-  const [entries, workouts, steps, weights] = await Promise.all([
+  const [entries, workouts, steps, weights, goals] = await Promise.all([
     db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, grams, kcal, protein, carbs, fat FROM entries WHERE user_id = $1 AND date BETWEEN $2 AND $3`, [userId, from, to]),
     db.query(`${WORKOUT_SELECT} WHERE user_id = $1 AND date BETWEEN $2 AND $3 AND NOT hidden`, [userId, from, to]),
     db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, steps FROM steps WHERE user_id = $1 AND date BETWEEN $2 AND $3`, [userId, from, to]),
     db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, kg FROM weights WHERE user_id = $1 AND date BETWEEN $2 AND $3`, [userId, from, to]),
+    db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, kcal FROM day_goals WHERE user_id = $1 AND date BETWEEN $2 AND $3 AND kcal IS NOT NULL`, [userId, from, to]),
   ]);
   const by = <T>(rows: T[], key: (r: T) => string) => {
     const m = new Map<string, T[]>();
@@ -403,13 +466,14 @@ export async function history(db: Db, userId: string, body: Body, from: string, 
   const w = by(workouts.map(rowToWorkout), (r) => r.date);
   const st = new Map(steps.map((r) => [String(r.date), Number(r.steps)]));
   const wt = new Map(weights.map((r) => [String(r.date), Number(r.kg)]));
+  const gk = new Map(goals.map((r) => [String(r.date), Number(r.kcal)]));
 
   const out: HistoryDay[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
     const de = (e.get(d) ?? []).map((r) => ({ grams: Number(r.grams), kcal: Number(r.kcal), protein: Number(r.protein), carbs: Number(r.carbs), fat: Number(r.fat) }));
     const dw = w.get(d) ?? [];
     const t = totals(de);
-    const b = budget(body, st.get(d) ?? 0, dw);
+    const b = budget(body, st.get(d) ?? 0, dw, undefined, gk.get(d) ?? null);
     out.push({
       date: d,
       consumed: Math.round(t.kcal),
@@ -449,7 +513,7 @@ export async function streak(db: Db, userId: string, today: string): Promise<num
 }
 
 export async function deleteAccount(db: Db, userId: string): Promise<void> {
-  for (const t of ["entries", "workouts", "steps", "weights"]) await db.query(`DELETE FROM ${t} WHERE user_id = $1`, [userId]);
+  for (const t of ["entries", "workouts", "steps", "weights", "day_goals", "recipes"]) await db.query(`DELETE FROM ${t} WHERE user_id = $1`, [userId]);
   await db.query("DELETE FROM foods WHERE owner = $1", [userId]);
   await db.query("DELETE FROM profiles WHERE user_id = $1", [userId]);
 }

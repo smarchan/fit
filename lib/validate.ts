@@ -1,4 +1,4 @@
-import type { Body, Entry, Food, Intensity, Meal, WorkoutType } from "./types";
+import type { Body, Entry, Food, Intensity, Meal, Recipe, RecipeItem, WorkoutType } from "./types";
 import { MEALS, WORKOUT_TYPES } from "./types.ts";
 
 export class Invalid extends Error {}
@@ -61,11 +61,58 @@ export function entryInput(v: Record<string, unknown>): Omit<Entry, "id"> {
   };
 }
 
-export function entryPatch(v: Record<string, unknown>): { grams?: number; meal?: Meal } {
-  const out: { grams?: number; meal?: Meal } = {};
+export interface EntryPatch {
+  grams?: number;
+  meal?: Meal;
+  date?: string;
+  name?: string;
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
+/** Any field of a logged entry can be corrected afterwards. Nutrition values are per 100 g. */
+export function entryPatch(v: Record<string, unknown>): EntryPatch {
+  const out: EntryPatch = {};
   if (v.grams !== undefined) out.grams = num(v.grams, "Cantidad", 0.1, 5000);
   if (v.meal !== undefined) out.meal = oneOf<Meal>(v.meal, MEALS, "Comida");
+  if (v.date !== undefined) out.date = date(v.date);
+  if (v.name !== undefined) {
+    const name = str(v.name, 160);
+    if (!name) throw new Invalid("Falta el nombre");
+    out.name = name;
+  }
+  if (v.kcal !== undefined) out.kcal = num(v.kcal, "Calorías", 0, 950);
+  if (v.protein !== undefined) out.protein = num(v.protein, "Proteína", 0, 100);
+  if (v.carbs !== undefined) out.carbs = num(v.carbs, "Hidratos", 0, 100);
+  if (v.fat !== undefined) out.fat = num(v.fat, "Grasa", 0, 100);
   return out;
+}
+
+/** Targets typed for one day: calories and/or grams. A null field goes back to automatic. */
+export function dayGoalInput(v: Record<string, unknown>): { date: string; kcal: number | null; protein: number | null; carbs: number | null; fat: number | null } {
+  return {
+    date: date(v.date),
+    kcal: optNum(v.kcal, "Calorías", 500, 10000),
+    protein: optNum(v.protein, "Proteína", 0, 600),
+    carbs: optNum(v.carbs, "Hidratos", 0, 1500),
+    fat: optNum(v.fat, "Grasa", 0, 600),
+  };
+}
+
+export function recipeInput(v: Record<string, unknown>): Omit<Recipe, "id" | "updatedAt"> {
+  const name = str(v.name, 120);
+  if (!name) throw new Invalid("Falta el nombre");
+  if (!Array.isArray(v.items) || v.items.length === 0) throw new Invalid("Añade al menos un ingrediente");
+  if (v.items.length > 60) throw new Invalid("Demasiados ingredientes");
+  const items = v.items.map((raw): RecipeItem => {
+    const i = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const n = str(i.name, 160);
+    if (!n) throw new Invalid("Falta el nombre de un ingrediente");
+    return { foodId: str(i.foodId, 80), name: n, brand: str(i.brand, 120), grams: num(i.grams, "Cantidad", 0.1, 20000), image: safeUrl(i.image), ...per100(i) };
+  });
+  return { name, servings: num(v.servings ?? 1, "Raciones", 0.25, 200), totalG: optNum(v.totalG, "Peso final", 1, 50000), items };
 }
 
 export interface WorkoutPayload {
@@ -102,6 +149,9 @@ export function profileInput(v: Record<string, unknown>): Partial<Body> & { tz?:
   if ("eatBack" in v) out.eatBack = num(v.eatBack, "Entrenos", 0, 1);
   if ("proteinPerKg" in v) out.proteinPerKg = num(v.proteinPerKg, "Proteína", 0.5, 4);
   if ("fatPct" in v) out.fatPct = num(v.fatPct, "Grasa", 0.1, 0.6);
+  if ("proteinG" in v) out.proteinG = optNum(v.proteinG, "Proteína", 0, 600);
+  if ("carbsG" in v) out.carbsG = optNum(v.carbsG, "Hidratos", 0, 1500);
+  if ("fatG" in v) out.fatG = optNum(v.fatG, "Grasa", 0, 600);
   if ("tz" in v && typeof v.tz === "string" && isTz(v.tz)) out.tz = v.tz;
   if ("onboarded" in v) out.onboarded = Boolean(v.onboarded);
   return out;

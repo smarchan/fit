@@ -14,6 +14,9 @@ const body: Body = {
   eatBack: 1,
   proteinPerKg: 2,
   fatPct: 0.25,
+  proteinG: null,
+  carbsG: null,
+  fatG: null,
 };
 
 test("Mifflin–St Jeor BMR and sedentary base", () => {
@@ -61,7 +64,7 @@ test("device kcal are converted to net", () => {
 test("budget adds base, goal, steps and the eaten-back share of workouts", () => {
   const w = [{ type: "gimnasio" as const, minutes: 60, distanceKm: null, kcal: 320 }];
   const b = budget({ ...body, goalDelta: -300, eatBack: 0.5 }, 10000, w, now);
-  assert.deepEqual(b, { base: 2180, goal: -300, steps: 222, workouts: 320, workoutsCounted: 160, target: 2262 });
+  assert.deepEqual(b, { base: 2180, goal: -300, steps: 222, workouts: 320, workoutsCounted: 160, auto: 2262, manual: false, target: 2262 });
 });
 
 test("manual base overrides the estimate and target never drops below 1200", () => {

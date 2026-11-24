@@ -44,7 +44,9 @@ export default function Settings({ profile, onProfile, toast, devAuth, accountSl
 
   const sugg = suggestedBase(draft);
   const base = baseOf(draft);
-  const m = macroTargets(draft, base + draft.goalDelta);
+  const m = macroTargets({ ...draft, proteinG: null, carbsG: null, fatG: null }, base + draft.goalDelta);
+  // Hidratos blank = what is left after the protein and fat actually in use.
+  const carbsAuto = macroTargets({ ...draft, carbsG: null }, base + draft.goalDelta).carbs;
   const goalMode = draft.goalDelta < 0 ? "lose" : draft.goalDelta > 0 ? "gain" : "keep";
 
   return (
@@ -117,6 +119,13 @@ export default function Settings({ profile, onProfile, toast, devAuth, accountSl
           <Slider label="Proteína" value={draft.proteinPerKg} min={1.2} max={3} step={0.1} display={(v) => `${fmt(v, 1)} g/kg · ${fmt(m.protein)} g`} onChange={(v) => change({ proteinPerKg: Math.round(v * 10) / 10 })} />
           <Slider label="Grasa" value={Math.round(draft.fatPct * 100)} min={15} max={45} step={1} display={(v) => `${v} % · ${fmt(m.fat)} g`} onChange={(v) => change({ fatPct: v / 100 })} />
           <div className="hint">Hidratos: el resto, {fmt(m.carbs)} g en un día sin actividad extra.</div>
+          <div className="lbl">O fija tus gramos</div>
+          <div className="row-3">
+            <Field label="Proteína" value={draft.proteinG} suffix="g" placeholder={String(m.protein)} onCommit={(v) => change({ proteinG: v })} inputMode="numeric" />
+            <Field label="Hidratos" value={draft.carbsG} suffix="g" placeholder={String(carbsAuto)} onCommit={(v) => change({ carbsG: v })} inputMode="numeric" />
+            <Field label="Grasa" value={draft.fatG} suffix="g" placeholder={String(m.fat)} onCommit={(v) => change({ fatG: v })} inputMode="numeric" />
+          </div>
+          <div className="hint">Lo que dejes en blanco se calcula con los ajustes de arriba. Cada día puedes cambiarlo tocando el objetivo en Hoy.</div>
         </div>
       </div>
 
@@ -136,13 +145,13 @@ export default function Settings({ profile, onProfile, toast, devAuth, accountSl
   );
 }
 
-function Field({ label, value, suffix, onCommit, inputMode }: { label: string; value: number | null; suffix?: string; onCommit: (v: number | null) => void; inputMode?: "decimal" | "numeric" }) {
+function Field({ label, value, suffix, placeholder, onCommit, inputMode }: { label: string; value: number | null; suffix?: string; placeholder?: string; onCommit: (v: number | null) => void; inputMode?: "decimal" | "numeric" }) {
   const [raw, setRaw] = useState(value == null ? "" : String(value).replace(".", ","));
   useEffect(() => setRaw(value == null ? "" : String(value).replace(".", ",")), [value]);
   return (
     <div className="field" onBlur={() => parseNum(raw) !== value && onCommit(parseNum(raw))}>
       <label>{label}</label>
-      <NumInput value={raw} onChange={setRaw} suffix={suffix} inputMode={inputMode} />
+      <NumInput value={raw} onChange={setRaw} suffix={suffix} placeholder={placeholder} inputMode={inputMode} />
     </div>
   );
 }
