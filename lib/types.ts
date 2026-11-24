@@ -48,9 +48,10 @@ export interface Body {
   fatG: number | null;
 }
 
-/** Targets typed for one specific day. Any field left null stays automatic. */
+/** Settings typed for one specific day. Any field left null stays automatic. */
 export interface DayGoal {
-  kcal: number | null;
+  /** Deficit (negative) or surplus (positive) for this day, instead of the one in settings. */
+  delta: number | null;
   protein: number | null;
   carbs: number | null;
   fat: number | null;

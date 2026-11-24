@@ -189,28 +189,30 @@ export function WeightSheet({ date, current, onClose, onSaved }: { date: string;
   );
 }
 
-/** Targets for one day: calories and grams. Blank = automatic. */
-export function GoalSheet({ date, body, auto, current, onClose, onSaved }: { date: string; body: Body; auto: number; current: DayGoal | null; onClose: () => void; onSaved: (msg: string) => void }) {
+/** Settings for one day: deficit/surplus and grams. Blank = what Ajustes says. */
+export function GoalSheet({ date, body, maintenance, current, onClose, onSaved }: { date: string; body: Body; maintenance: number; current: DayGoal | null; onClose: () => void; onSaved: (msg: string) => void }) {
   const str = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
-  const [kcal, setKcal] = useState(str(current?.kcal));
+  const [delta, setDelta] = useState(str(current?.delta));
   const [protein, setProtein] = useState(str(current?.protein));
   const [carbs, setCarbs] = useState(str(current?.carbs));
   const [fat, setFat] = useState(str(current?.fat));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const k = parseNum(kcal);
-  // What each blank field would be, given the calories typed so far.
-  const calc = macroTargets(body, k ?? auto);
-  const any = [kcal, protein, carbs, fat].some((x) => x.trim() !== "");
+  const d = parseNum(delta);
+  const eff = d ?? body.goalDelta;
+  const target = Math.max(1200, maintenance + eff);
+  // What each blank field would be, given the deficit/surplus typed so far.
+  const calc = macroTargets(body, target, { protein: null, carbs: null, fat: null, delta: d });
+  const any = [delta, protein, carbs, fat].some((x) => x.trim() !== "");
 
   const save = async (reset = false) => {
     setBusy(true);
     setErr("");
     try {
-      const v = reset ? { kcal: null, protein: null, carbs: null, fat: null } : { kcal: k, protein: parseNum(protein), carbs: parseNum(carbs), fat: parseNum(fat) };
+      const v = reset ? { delta: null, protein: null, carbs: null, fat: null } : { delta: d, protein: parseNum(protein), carbs: parseNum(carbs), fat: parseNum(fat) };
       await api("/api/goals", { method: "PUT", body: { date, ...v } });
-      onSaved(reset || !any ? "Objetivo automático" : "Objetivo del día guardado");
+      onSaved(reset || !any ? "Ajuste automático" : "Ajuste del día guardado");
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -221,7 +223,7 @@ export function GoalSheet({ date, body, auto, current, onClose, onSaved }: { dat
     setErr("");
     try {
       await api("/api/profile", { method: "PUT", body: { proteinG: parseNum(protein), carbsG: parseNum(carbs), fatG: parseNum(fat) } });
-      await api("/api/goals", { method: "PUT", body: { date, kcal: k, protein: null, carbs: null, fat: null } });
+      await api("/api/goals", { method: "PUT", body: { date, delta: d, protein: null, carbs: null, fat: null } });
       onSaved("Gramos guardados para todos los días");
     } catch (e) {
       setErr((e as Error).message);
@@ -246,10 +248,21 @@ export function GoalSheet({ date, body, auto, current, onClose, onSaved }: { dat
         </>
       }
     >
+      <div className="est" style={{ background: "var(--accent-soft)", borderColor: "rgba(37,99,235,.25)" }}>
+        <span className="v num" style={{ color: "var(--accent)" }}>{fmt(target)}</span>
+        <span className="muted">kcal · mantenimiento {fmt(maintenance)} {eff < 0 ? "−" : "+"} {fmt(Math.abs(eff))}</span>
+      </div>
       <div className="field">
-        <label htmlFor="g-k">Calorías</label>
-        <NumInput id="g-k" value={kcal} onChange={setKcal} suffix="kcal" placeholder={String(auto)} inputMode="numeric" autoFocus />
-        <div className="hint">Automático: {fmt(auto)} kcal (base + pasos + entrenos). Si escribes una cifra, sustituye al cálculo solo este día.</div>
+        <label htmlFor="g-k">Déficit o superávit de hoy</label>
+        <NumInput id="g-k" value={delta} onChange={setDelta} suffix="kcal" placeholder={String(body.goalDelta)} inputMode="numeric" />
+        <div className="chips">
+          {[-500, -300, 0, 250, 500].map((v) => (
+            <button key={v} className="chip" aria-pressed={d === v} onClick={() => setDelta(String(v))}>
+              {v === 0 ? "Mantener" : v < 0 ? `Déficit ${-v}` : `Superávit ${v}`}
+            </button>
+          ))}
+        </div>
+        <div className="hint">Se suma al mantenimiento, que sube con tus pasos y entrenos. En blanco usa el de Ajustes ({body.goalDelta > 0 ? "+" : ""}{fmt(body.goalDelta)}).</div>
       </div>
       <div className="row-3">
         <div className="field">
@@ -265,7 +278,7 @@ export function GoalSheet({ date, body, auto, current, onClose, onSaved }: { dat
           <NumInput value={fat} onChange={setFat} suffix="g" placeholder={String(calc.fat)} inputMode="numeric" />
         </div>
       </div>
-      <div className="hint">Lo que dejes en blanco se calcula solo.</div>
+      <div className="hint">Proteína y grasa se mantienen fijas; las calorías que añade o quita el día van a los hidratos.</div>
       {(protein.trim() !== "" || carbs.trim() !== "" || fat.trim() !== "") && (
         <button className="btn block" onClick={alwaysMacros} disabled={busy}>
           Usar estos gramos todos los días

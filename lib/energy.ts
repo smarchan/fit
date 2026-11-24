@@ -99,35 +99,36 @@ export function stepKcal(steps: number, workouts: Pick<Workout, "type" | "minute
 
 export interface Budget {
   base: number;
+  /** Deficit (negative) or surplus (positive) applied to maintenance. */
   goal: number;
   steps: number;
   /** Net kcal burned in workouts. */
   workouts: number;
   /** Part of `workouts` added to the target (eatBack). */
   workoutsCounted: number;
-  /** What base + goal + steps + workouts add up to. */
-  auto: number;
-  /** True when the user typed the target for this day. */
-  manual: boolean;
+  /** Maintenance for the day: base + steps + workouts. Goes up with activity. */
+  maintenance: number;
+  /** True when the deficit/surplus was typed for this specific day. */
+  custom: boolean;
   target: number;
 }
 
-/** `kcalOverride`: calories typed for this specific day; replaces the calculated target. */
+/** target = maintenance (base + steps + workouts) + deficit/surplus. `deltaOverride` replaces the settings' deficit/surplus for one day. */
 export function budget(
   b: Body,
   steps: number,
   workouts: Pick<Workout, "type" | "minutes" | "distanceKm" | "kcal">[],
   now = new Date(),
-  kcalOverride: number | null = null,
+  deltaOverride: number | null = null,
 ): Budget {
   const kg = weightOf(b);
   const base = baseOf(b, now);
   const s = stepKcal(steps, workouts, kg);
   const w = workouts.reduce((t, x) => t + x.kcal, 0);
   const counted = round(w * clamp(b.eatBack, 0, 1));
-  const auto = Math.max(1200, base + b.goalDelta + s + counted);
-  const manual = kcalOverride != null && kcalOverride > 0;
-  return { base, goal: b.goalDelta, steps: s, workouts: w, workoutsCounted: counted, auto, manual, target: manual ? round(kcalOverride) : auto };
+  const maintenance = base + s + counted;
+  const goal = deltaOverride ?? b.goalDelta;
+  return { base, goal, steps: s, workouts: w, workoutsCounted: counted, maintenance, custom: deltaOverride != null, target: Math.max(1200, maintenance + goal) };
 }
 
 export interface Macros {
@@ -137,10 +138,15 @@ export interface Macros {
   fat: number;
 }
 
-/** Macro targets in grams. Priority per macro: typed for the day, typed in settings, calculated. */
-export function macroTargets(b: Body, target: number, day?: { protein: number | null; carbs: number | null; fat: number | null } | null): Macros {
+/**
+ * Macro targets in grams. Protein and fat stay the same whatever the activity (fat is a share of the
+ * no-activity calories: base + deficit/surplus), so everything the day adds or removes goes to carbs.
+ * Priority per macro: typed for the day, typed in settings, calculated.
+ */
+export function macroTargets(b: Body, target: number, day?: { protein: number | null; carbs: number | null; fat: number | null; delta?: number | null } | null, now = new Date()): Macros {
+  const resting = Math.max(1200, baseOf(b, now) + (day?.delta ?? b.goalDelta));
   const protein = day?.protein ?? b.proteinG ?? round(weightOf(b) * b.proteinPerKg);
-  const fat = day?.fat ?? b.fatG ?? round((target * clamp(b.fatPct, 0.1, 0.6)) / 9);
+  const fat = day?.fat ?? b.fatG ?? round((resting * clamp(b.fatPct, 0.1, 0.6)) / 9);
   const carbs = day?.carbs ?? b.carbsG ?? Math.max(0, round((target - protein * 4 - fat * 9) / 4));
   return { kcal: target, protein: round(protein), carbs: round(carbs), fat: round(fat) };
 }

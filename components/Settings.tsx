@@ -118,7 +118,7 @@ export default function Settings({ profile, onProfile, toast, devAuth, accountSl
           <span className="card-t">Macros</span>
           <Slider label="Proteína" value={draft.proteinPerKg} min={1.2} max={3} step={0.1} display={(v) => `${fmt(v, 1)} g/kg · ${fmt(m.protein)} g`} onChange={(v) => change({ proteinPerKg: Math.round(v * 10) / 10 })} />
           <Slider label="Grasa" value={Math.round(draft.fatPct * 100)} min={15} max={45} step={1} display={(v) => `${v} % · ${fmt(m.fat)} g`} onChange={(v) => change({ fatPct: v / 100 })} />
-          <div className="hint">Hidratos: el resto, {fmt(m.carbs)} g en un día sin actividad extra.</div>
+          <div className="hint">Proteína y grasa son fijas. Los hidratos son el resto ({fmt(m.carbs)} g sin actividad) y suben con tus pasos y entrenos.</div>
           <div className="lbl">O fija tus gramos</div>
           <div className="row-3">
             <Field label="Proteína" value={draft.proteinG} suffix="g" placeholder={String(m.protein)} onCommit={(v) => change({ proteinG: v })} inputMode="numeric" />

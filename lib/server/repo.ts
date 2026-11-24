@@ -179,7 +179,7 @@ export async function getDay(db: Db, userId: string, date: string): Promise<DayD
     db.query(`${WORKOUT_SELECT} WHERE user_id = $1 AND date = $2 AND NOT hidden ORDER BY coalesce(start_at, created_at)`, [userId, date]),
     db.query("SELECT steps, source, updated_at FROM steps WHERE user_id = $1 AND date = $2", [userId, date]),
     db.query("SELECT kg FROM weights WHERE user_id = $1 AND date = $2", [userId, date]),
-    db.query("SELECT kcal, protein, carbs, fat FROM day_goals WHERE user_id = $1 AND date = $2", [userId, date]),
+    db.query("SELECT delta, protein, carbs, fat FROM day_goals WHERE user_id = $1 AND date = $2", [userId, date]),
   ]);
   return {
     date,
@@ -187,20 +187,20 @@ export async function getDay(db: Db, userId: string, date: string): Promise<DayD
     workouts: workouts.map(rowToWorkout),
     steps: steps[0] ? { steps: Number(steps[0].steps), source: steps[0].source as Steps["source"], updatedAt: iso(steps[0].updated_at)! } : null,
     weight: weight[0] ? Number(weight[0].kg) : null,
-    goal: goal[0] ? { kcal: n(goal[0].kcal), protein: n(goal[0].protein), carbs: n(goal[0].carbs), fat: n(goal[0].fat) } : null,
+    goal: goal[0] ? { delta: n(goal[0].delta), protein: n(goal[0].protein), carbs: n(goal[0].carbs), fat: n(goal[0].fat) } : null,
   };
 }
 
-/** Targets typed for one day. All-null removes the row, so the day goes back to automatic. */
+/** Settings typed for one day. All-null removes the row, so the day goes back to automatic. */
 export async function setDayGoal(db: Db, userId: string, date: string, g: DayGoal): Promise<void> {
-  if (g.kcal == null && g.protein == null && g.carbs == null && g.fat == null) {
+  if (g.delta == null && g.protein == null && g.carbs == null && g.fat == null) {
     await db.query("DELETE FROM day_goals WHERE user_id = $1 AND date = $2", [userId, date]);
     return;
   }
   await db.query(
-    `INSERT INTO day_goals (user_id, date, kcal, protein, carbs, fat) VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (user_id, date) DO UPDATE SET kcal = EXCLUDED.kcal, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat`,
-    [userId, date, g.kcal, g.protein, g.carbs, g.fat],
+    `INSERT INTO day_goals (user_id, date, delta, protein, carbs, fat) VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (user_id, date) DO UPDATE SET delta = EXCLUDED.delta, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat`,
+    [userId, date, g.delta, g.protein, g.carbs, g.fat],
   );
 }
 
@@ -455,7 +455,7 @@ export async function history(db: Db, userId: string, body: Body, from: string, 
     db.query(`${WORKOUT_SELECT} WHERE user_id = $1 AND date BETWEEN $2 AND $3 AND NOT hidden`, [userId, from, to]),
     db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, steps FROM steps WHERE user_id = $1 AND date BETWEEN $2 AND $3`, [userId, from, to]),
     db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, kg FROM weights WHERE user_id = $1 AND date BETWEEN $2 AND $3`, [userId, from, to]),
-    db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, kcal FROM day_goals WHERE user_id = $1 AND date BETWEEN $2 AND $3 AND kcal IS NOT NULL`, [userId, from, to]),
+    db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS date, delta FROM day_goals WHERE user_id = $1 AND date BETWEEN $2 AND $3 AND delta IS NOT NULL`, [userId, from, to]),
   ]);
   const by = <T>(rows: T[], key: (r: T) => string) => {
     const m = new Map<string, T[]>();
@@ -466,7 +466,7 @@ export async function history(db: Db, userId: string, body: Body, from: string, 
   const w = by(workouts.map(rowToWorkout), (r) => r.date);
   const st = new Map(steps.map((r) => [String(r.date), Number(r.steps)]));
   const wt = new Map(weights.map((r) => [String(r.date), Number(r.kg)]));
-  const gk = new Map(goals.map((r) => [String(r.date), Number(r.kcal)]));
+  const gk = new Map(goals.map((r) => [String(r.date), Number(r.delta)]));
 
   const out: HistoryDay[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {

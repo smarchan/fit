@@ -350,3 +350,5 @@ ol.steps code { font-family: var(--font-mono); font-size: 12px; background: var(
 .ing-x { width: 34px; height: 34px; border-radius: 10px; border: 0; background: transparent; color: var(--faint); display: grid; place-items: center; }
 .ing-x:hover { color: var(--over); background: var(--surface-2); }
 .sumbar { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; gap: 8px; }
+.maint { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.maint b { color: var(--text); font-weight: 650; }

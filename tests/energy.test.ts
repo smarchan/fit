@@ -64,7 +64,7 @@ test("device kcal are converted to net", () => {
 test("budget adds base, goal, steps and the eaten-back share of workouts", () => {
   const w = [{ type: "gimnasio" as const, minutes: 60, distanceKm: null, kcal: 320 }];
   const b = budget({ ...body, goalDelta: -300, eatBack: 0.5 }, 10000, w, now);
-  assert.deepEqual(b, { base: 2180, goal: -300, steps: 222, workouts: 320, workoutsCounted: 160, auto: 2262, manual: false, target: 2262 });
+  assert.deepEqual(b, { base: 2180, goal: -300, steps: 222, workouts: 320, workoutsCounted: 160, maintenance: 2562, custom: false, target: 2262 });
 });
 
 test("manual base overrides the estimate and target never drops below 1200", () => {
@@ -74,7 +74,7 @@ test("manual base overrides the estimate and target never drops below 1200", () 
 
 test("macro targets fill the remaining kcal with carbs", () => {
   const m = macroTargets(body, 2400);
-  assert.deepEqual(m, { kcal: 2400, protein: 160, fat: 67, carbs: 289 });
+  assert.deepEqual(m, { kcal: 2400, protein: 160, fat: 61, carbs: 303 });
   assert.ok(Math.abs(m.protein * 4 + m.fat * 9 + m.carbs * 4 - 2400) < 10);
 });
 

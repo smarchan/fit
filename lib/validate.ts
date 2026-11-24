@@ -90,11 +90,11 @@ export function entryPatch(v: Record<string, unknown>): EntryPatch {
   return out;
 }
 
-/** Targets typed for one day: calories and/or grams. A null field goes back to automatic. */
-export function dayGoalInput(v: Record<string, unknown>): { date: string; kcal: number | null; protein: number | null; carbs: number | null; fat: number | null } {
+/** Settings typed for one day: deficit/surplus and/or grams. A null field goes back to automatic. */
+export function dayGoalInput(v: Record<string, unknown>): { date: string; delta: number | null; protein: number | null; carbs: number | null; fat: number | null } {
   return {
     date: date(v.date),
-    kcal: optNum(v.kcal, "Calorías", 500, 10000),
+    delta: optNum(v.delta, "Ajuste", -1500, 1500),
     protein: optNum(v.protein, "Proteína", 0, 600),
     carbs: optNum(v.carbs, "Hidratos", 0, 1500),
     fat: optNum(v.fat, "Grasa", 0, 600),

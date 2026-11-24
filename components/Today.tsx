@@ -22,7 +22,7 @@ export interface TodayActions {
 
 export function useBudget(profile: Profile, day: DayData) {
   return useMemo(() => {
-    const b = budget(profile, day.steps?.steps ?? 0, day.workouts, undefined, day.goal?.kcal ?? null);
+    const b = budget(profile, day.steps?.steps ?? 0, day.workouts, undefined, day.goal?.delta ?? null);
     const t = totals(day.entries);
     return { b, t, m: macroTargets(profile, b.target, day.goal) };
   }, [profile, day]);
@@ -162,35 +162,18 @@ function Hero({ b, consumed, onEdit }: { b: Budget; consumed: number; onEdit: ()
           </div>
         </div>
       </div>
-      {b.manual ? (
-        <div className="equation">
-          <div className="eq-items">
-            <span>
-              <i style={{ background: "var(--accent)" }} />
-              Objetivo fijado por ti · automático <b className="num">{fmt(b.auto)}</b>
-            </span>
-          </div>
-        </div>
-      ) : (
       <div className="equation">
         <div className="eq-bar" aria-hidden="true">
           <span style={{ flexGrow: b.base, background: "var(--line-strong)" }} />
-          {b.goal > 0 && <span style={{ flexGrow: b.goal, background: "var(--accent)" }} />}
           {b.steps > 0 && <span style={{ flexGrow: b.steps, background: "var(--steps)" }} />}
           {b.workoutsCounted > 0 && <span style={{ flexGrow: b.workoutsCounted, background: "var(--burn)" }} />}
-          <span style={{ flexGrow: total * 0.0001 }} />
+          {b.goal > 0 && <span style={{ flexGrow: b.goal, background: "var(--accent)" }} />}
         </div>
         <div className="eq-items">
           <span>
             <i style={{ background: "var(--line-strong)" }} />
             Base <b className="num">{fmt(b.base)}</b>
           </span>
-          {b.goal !== 0 && (
-            <span>
-              <i style={{ background: b.goal > 0 ? "var(--accent)" : "var(--over)" }} />
-              {b.goal > 0 ? "Volumen" : "Déficit"} <b className="num">{b.goal > 0 ? "+" : "−"}{fmt(Math.abs(b.goal))}</b>
-            </span>
-          )}
           <span>
             <i style={{ background: "var(--steps)" }} />
             Pasos <b className="num">+{fmt(b.steps)}</b>
@@ -200,8 +183,19 @@ function Hero({ b, consumed, onEdit }: { b: Budget; consumed: number; onEdit: ()
             Entrenos <b className="num">+{fmt(b.workoutsCounted)}</b>
           </span>
         </div>
+        <div className="maint">
+          <span>
+            Mantenimiento <b className="num">{fmt(b.maintenance)}</b>
+          </span>
+          <span style={{ color: b.goal < 0 ? "var(--over)" : b.goal > 0 ? "var(--accent)" : undefined }}>
+            {b.goal < 0 ? "Déficit" : b.goal > 0 ? "Superávit" : "Sin ajuste"}
+            {b.goal !== 0 && (
+              <b className="num"> {b.goal > 0 ? "+" : "−"}{fmt(Math.abs(b.goal))}</b>
+            )}
+            {b.custom && <span className="faint"> · hoy</span>}
+          </span>
+        </div>
       </div>
-      )}
     </div>
   );
 }

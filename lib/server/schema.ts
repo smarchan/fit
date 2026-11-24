@@ -104,4 +104,7 @@ export const SCHEMA = [
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS recipes_user ON recipes (user_id)`,
+  // Days used to hold an absolute calorie target (kcal), which froze the day against activity. It is now a deficit/surplus (delta).
+  `ALTER TABLE day_goals ADD COLUMN IF NOT EXISTS delta int`,
+  `DELETE FROM day_goals WHERE delta IS NULL AND protein IS NULL AND carbs IS NULL AND fat IS NULL`,
 ];

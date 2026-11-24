@@ -329,7 +329,7 @@ export default function App({ devAuth }: { devAuth: boolean }) {
         <GoalSheet
           date={date}
           body={profile}
-          auto={budget(profile, day.steps?.steps ?? 0, day.workouts).auto}
+          maintenance={budget(profile, day.steps?.steps ?? 0, day.workouts).maintenance}
           current={day.goal}
           onClose={() => setSheet(null)}
           onSaved={closeAndRefresh}
